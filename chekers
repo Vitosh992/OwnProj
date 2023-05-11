@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>Checkers Game</title>
+  </head>
+  <body>
+    
+    <div id="turn-indicator"></div>
+    <button onclick="restart()">Restart</button>
+    
+    <script>
+// Создаем объект для ячеек доски
+class Cell {
+  constructor(x, y, color, piece) {
+    this.x = x;
+    this.y = y;
+    this.color = color;
+    this.piece = piece;
+  }
+}
+// Создаем объект для шашек
+class Piece {
+  constructor(color, king) {
+    this.color = color;
+    this.king = king;
+  }
+}
+// Создаем объект для доски
+class Board {
+  constructor() {
+    this.cells = [];
+    this.selectedPiece = null;
+    this.turn = "black";
+    this.createCells();
+    this.setupPieces();
+    this.drawBoard();
+  }
+  // Создаем ячейки доски
+  createCells() {
+    for (let i = 0; i < 8; i++) {
+      for (let j = 0; j < 8; j++) {
+        let color = (i + j) % 2 === 0 ? "white" : "black";
+        let piece = null;
+        this.cells.push(new Cell(i, j, color, piece));
+      }
+    }
+  }
+  // Расставляем шашки на доске
+  setupPieces() {
+    for (let i = 0; i < this.cells.length; i++) {
+      let cell = this.cells[i];
+      if (cell.color === "black" && cell.y < 3) {
+        cell.piece = new Piece("black", false);
+      }
+      if (cell.color === "black" && cell.y > 4) {
+        cell.piece = new Piece("white", false);
+      }
+    }
+  }
+  // Отрисовываем доску
+  drawBoard() {
+  let board = document.createElement("table");
+  board.id = "board";
+  for (let i = 0; i < this.cells.length; i++) {
+    let cell = document.createElement("td");
+    cell.id = "cell-" + i;
+    cell.classList.add("cell");
+    cell.classList.add(this.cells[i].color);
+    cell.addEventListener("click", () => {
+      this.handleClick(cell);
+    });
+    if (this.cells[i].piece !== null) {
+      let piece = document.createElement("div");
+      piece.classList.add("piece");
+      piece.classList.add(this.cells[i].piece.color);
+      if (this.cells[i].piece.king) {
+        piece.classList.add("king");
+      }
+      cell.appendChild(piece);
+    }
+    board.appendChild(cell);
+    if ((i + 1) % 8 === 0) { // если строка закончилась, создаем новую строку
+      let row = document.createElement("tr");
+      board.appendChild(row);
+    }
+  }
+  document.body.appendChild(board);
+}
+  // Обработчик клика на ячейку
+  handleClick(cell) {
+    let cellIndex = parseInt(cell.id.split("-")[1]);
+    let selectedCell = this.cells[cellIndex];
+    if (selectedCell.piece !== null && selectedCell.piece.color === this.turn) {
+      if (this.selectedPiece !== null) {
+        this.unselectPiece();
+      }
+      this.selectPiece(cell, selectedCell);
+    } else if (this.selectedPiece !== null) {
+      this.movePiece(cell, selectedCell);
+    }
+  }
+  // Выбор шашки
+  selectPiece(cell, selectedCell) {
+    this.selectedPiece = selectedCell;
+    cell.classList.add("selected");
+  }
+  // Снятие выбора с шашки
+  unselectPiece() {
+    let selectedCellIndex = this.cells.indexOf(this.selectedPiece);
+    let selectedCellElement = document.getElementById("cell-" + selectedCellIndex);
+    selectedCellElement.classList.remove("selected");
+    this.selectedPiece = null;
+  }
+  // Перемещение шашки
+  movePiece(cell, selectedCell) {
+    let cellIndex = parseInt(cell.id.split("-")[1]);
+    if (cellIndex === this.cells.indexOf(selectedCell)) {
+      this.unselectPiece();
+      return;
+    }
+    if (cell.children.length > 0) {
+      return;
+    }
+    let dx = selectedCell.x - cellIndex % 8;
+    let dy = selectedCell.y - Math.floor(cellIndex / 8);
+    if (Math.abs(dx) !== Math.abs(dy)) {
+      return;
+    }
+	// Проверка на возможность взятия шашки
+    let enemyCellIndex = this.cells.indexOf(selectedCell) - dx - dy * 8;
+    let enemyCell = this.cells[enemyCellIndex];
+    if (Math.abs(dx) === 2 &amp;&amp; Math.abs(dy) === 2 &amp;&amp; enemyCell.piece !== null &amp;&amp; enemyCell.piece.color !== this.turn) {
+      this.killPiece(cell, selectedCell, enemyCell);
+    } else if (Math.abs(dx) === 1 &amp;&amp; Math.abs(dy) === 1) {
+      this.movePieceTo(cell, selectedCell);
+    }
+  }
+  // Перемещение шашки на пустую ячейку
+  movePieceTo(cell, selectedCell) {
+    this.unselectPiece();
+    this.cells[this.cells.indexOf(selectedCell)].piece = null;
+    let piece = selectedCell.piece;
+    selectedCell.piece = null;
+    cell.appendChild(document.querySelector(&quot;.selected .piece&quot;));
+    this.cells[this.cells.indexOf(cell)].piece = piece;
+    this.checkForKing(piece, cell);
+    this.switchTurn();
+  }
+  // Взятие шашки
+  killPiece(cell, selectedCell, enemyCell) {
+    this.unselectPiece();
+    this.cells[this.cells.indexOf(selectedCell)].piece = null;
+    let piece = selectedCell.piece;
+    selectedCell.piece = null;
+    enemyCell.piece = null;
+    cell.appendChild(document.querySelector(&quot;.selected .piece&quot;));
+    this.cells[this.cells.indexOf(cell)].piece = piece;
+    this.checkForKing(piece, cell);
+    if (!this.checkForVictory()) {
+      this.checkForMoreKills(cell);
+    }
+  }
+  // Проверка на возможность продолжения взятия шашек
+  checkForMoreKills(cell) {
+    let cellIndex = this.cells.indexOf(cell);
+    let cellUpLeft = cellIndex - 9;
+    let cellUpRight = cellIndex - 7;
+    let cellDownLeft = cellIndex + 7;
+    let cellDownRight = cellIndex + 9;
+    let cellsToCheck = [cellUpLeft, cellUpRight, cellDownLeft, cellDownRight];
+    let canKill = false;
+    for (let i = 0; i &lt; cellsToCheck.length; i++) {
+      let cellToCheck = this.cells[cellsToCheck[i]];
+      if (cellToCheck !== undefined &amp;&amp; cellToCheck.piece !== null &amp;&amp; cellToCheck.piece.color !== this.turn) {
+        let dx = (cellIndex % 8) - (cellToCheck.x % 8);
+        let dy = Math.floor(cellIndex / 8) - Math.floor(cellToCheck.y / 8);
+        let enemyCellIndex = cellsToCheck[i] - dx - dy * 8;
+        let enemyCell = this.cells[enemyCellIndex];
+        if (enemyCell !== undefined &amp;&amp; enemyCell.piece === null) {
+          canKill = true;
+          break;
+        }
+      }
+    }
+    if (!canKill) {
+      this.switchTurn();
+    }
+  }
+  // Проверка на превращение шашки в дамку
+  checkForKing(piece, cell) {
+    if (piece.color === &quot;black&quot; &amp;&amp; cell.y === 7) {
+      piece.king = true;
+      cell.firstChild.classList.add(&quot;king&quot;);
+    }
+    if (piece.color === &quot;white&quot; &amp;&amp; cell.y === 0) {
+      piece.king = true;
+      cell.firstChild.classList.add(&quot;king&quot;);
+    }
+  }
+  // Проверка на победу
+  checkForVictory() {
+    let blackPieces = 0;
+    let whitePieces = 0;
+    for (let i = 0; i &lt; this.cells.length; i++) {
+      if (this.cells[i].piece !== null) {
+        if (this.cells[i].piece.color === &quot;black&quot;) {
+          blackPieces++;
+        } else {
+          whitePieces++;
+		  }
+      }
+    }
+    if (blackPieces === 0 || whitePieces === 0) {
+      setTimeout(() =&gt; {
+        alert(this.turn.toUpperCase() + &amp;quot; WINS!&amp;quot;);
+        location.reload();
+      }, 100);
+      return true;
+    }
+    return false;
+  }
+  // Переключение хода
+  switchTurn() {
+    this.turn = this.turn === &amp;quot;black&amp;quot; ? &amp;quot;white&amp;quot; : &amp;quot;black&amp;quot;;
+    let turnIndicator = document.getElementById(&amp;quot;turn-indicator&amp;quot;);
+    turnIndicator.classList.remove(&amp;quot;black&amp;quot;);
+    turnIndicator.classList.remove(&amp;quot;white&amp;quot;);
+    turnIndicator.classList.add(this.turn);
+  }
+}
+// Создаем доску
+let board = new Board();
+// Добавляем индикатор хода
+let turnIndicator = document.createElement(&quot;div&quot;);
+turnIndicator.id = &quot;turn-indicator&quot;;
+turnIndicator.classList.add(board.turn);
+document.body.appendChild(turnIndicator);
+// Добавляем кнопку для перезапуска игры
+let restartButton = document.createElement(&amp;quot;button&amp;quot;);
+restartButton.textContent = &amp;quot;Restart&amp;quot;;
+restartButton.addEventListener(&amp;quot;click&amp;quot;, () =&amp;gt; {
+  location.reload();
+});
+document.body.appendChild(restartButton);
+function restart() {
+        location.reload();
+      }
+</scipt>
+</body>
+</html>
